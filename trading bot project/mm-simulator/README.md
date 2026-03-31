@@ -35,6 +35,45 @@ It replicates the fundamental architecture of what quantitative developers handl
 
 ## 🏗️ Architecture
 
+```mermaid
+flowchart TD
+    %% Styling
+    classDef external fill:#f3ba2f,stroke:#333,stroke-width:2px,color:#000
+    classDef layer fill:#2b2b2b,stroke:#00a8ff,stroke-width:2px,color:#fff
+    classDef presentation fill:#ff4b4b,stroke:#333,stroke-width:2px,color:#fff
+
+    %% External Data Source
+    Binance{{"Binance WebSocket<br/>(Live Order Book)"}}:::external
+
+    %% Simulator Components
+    subgraph Simulator Data Flow
+        Streamer["Data Layer<br/>(stream.py)"]:::layer
+        Model["Strategy Layer<br/>(model.py)"]:::layer
+        Engine["Execution Engine<br/>(engine.py)"]:::layer
+        Risk["Risk Manager<br/>(risk.py)"]:::layer
+    end
+
+    %% Presentation
+    Dashboard["Streamlit Dashboard<br/>(dashboard.py)"]:::presentation
+    Charts[("Plotly Real-time Charts")]:::layer
+
+    %% Edges
+    Binance -- "Tick Data (bestBid/Ask)" --> Streamer
+    Streamer -- "Live Top-of-Book" --> Dashboard
+    
+    Dashboard -- "Mid Price" --> Model
+    Engine -. "Current Position" .-> Model
+    Model -- "Optimal Quotes & Spread" --> Dashboard
+
+    Dashboard -- "Evaluate Quotes vs Market" --> Engine
+    Engine -- "Simulated Fills (Inventory + P&L)" --> Dashboard
+    
+    Engine -- "Risk Metrics" --> Risk
+    Risk -- "Kill Switch / Halts" --> Dashboard
+    
+    Dashboard -- "Metrics Render" --> Charts
+```
+
 The simulator is built entirely in Python, reflecting a modular, micro-service-like component design:
 
 ```text
@@ -45,6 +84,76 @@ The simulator is built entirely in Python, reflecting a modular, micro-service-l
 ├── risk.py            # Independent observer enforcing threshold logic to halt trading
 ├── dashboard.py       # Streamlit GUI coordinating threads, state loops, and Plotly UI
 └── requirements.txt
+```
+
+---
+
+## 📊 System Diagrams
+
+### Use Case Diagram (Requirements)
+```mermaid
+flowchart LR
+    %% Styling
+    classDef actor fill:#8e44ad,stroke:#fff,stroke-width:2px,color:#fff
+    classDef usecase fill:#e67e22,stroke:#d35400,stroke-width:2px,color:#fff
+    
+    User([Trader / Quant]):::actor
+    API([Binance WebSocket]):::actor
+
+    subgraph MM Simulator
+        UC1([Start / Stop Engine]):::usecase
+        UC2([Adjust Risk & Volatility Params]):::usecase
+        UC3([Monitor Live P&L & Inventory]):::usecase
+        UC4([Receive Live Order Book Ticks]):::usecase
+        UC5([Execute Simulated Fills]):::usecase
+        UC6([Halt on Risk Limit Exceeded]):::usecase
+    end
+
+    User --> UC1
+    User --> UC2
+    User --> UC3
+    
+    API --> UC4
+    UC4 -.-> UC5
+    UC5 -.-> UC3
+    UC6 -.-> UC1
+```
+
+### Activity Diagram (Workflow)
+```mermaid
+stateDiagram-v2
+    %% Styling
+    classDef idleState fill:#27ae60,color:#fff,stroke:#fff,stroke-width:2px
+    classDef actionState fill:#2980b9,color:#fff,stroke:#fff,stroke-width:2px
+    classDef dangerState fill:#c0392b,color:#fff,stroke:#fff,stroke-width:2px
+    classDef streamState fill:#2c3e50,color:#fff,stroke:#3498db,stroke-width:2px
+    
+    [*] --> Idle
+    Idle --> DataStream : User clicks 'Start MM'
+    
+    state DataStream {
+        [*] --> AwaitTick
+        AwaitTick --> CheckRisk : Tick Received
+        
+        CheckRisk --> Halt : Limits Breached
+        CheckRisk --> CalcQuotes : Safe
+        
+        CalcQuotes --> CheckFills : Bid & Ask Calculated
+        CheckFills --> UpdateEngine : Market crosses Quotes
+        CheckFills --> AwaitTick : No Fill
+        UpdateEngine --> AwaitTick
+    }
+    
+    Halt --> Idle : Auto-Stopped / User Resets
+
+    class Idle idleState
+    class AwaitTick actionState
+    class CheckRisk actionState
+    class CalcQuotes actionState
+    class CheckFills actionState
+    class UpdateEngine actionState
+    class Halt dangerState
+    class DataStream streamState
 ```
 
 ---
