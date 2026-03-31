@@ -15,6 +15,27 @@ st.set_page_config(page_title="Jane Street Style MM Simulator", layout="wide", p
 st.title("Live Market Making Simulator")
 st.markdown("Avellaneda-Stoikov model integrated with live Binance WebSocket data.")
 
+# CSS Hack to completely REMOVE Streamlit's "dimming/pulsing" effect during fast reruns
+st.markdown("""
+<style>
+    [data-testid="stFragment"] {
+        opacity: 1 !important;
+        transition: none !important;
+        animation: none !important;
+    }
+    [data-stale="true"] {
+        opacity: 1 !important;
+        transition: none !important;
+        filter: none !important;
+        animation: none !important;
+    }
+    .stElementContainer {
+        opacity: 1 !important;
+        transition: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Cache the streamer so we don't reconnect on every Streamlit rerun
 @st.cache_resource
 def init_streamer():
@@ -69,122 +90,104 @@ if st.session_state.auto_loop and streamer.best_bid is None:
     st.rerun()
 
 # Layout
-top_cols = st.columns(4)
-metric_mid = top_cols[0].empty()
-metric_inv = top_cols[1].empty()
-metric_pnl = top_cols[2].empty()
-metric_status = top_cols[3].empty()
+@st.fragment(run_every=1)
+def update_dashboard():
+    model = AvellanedaStoikovModel(risk_aversion=risk_aversion, liquidity_density=liquidity, volatility=volatility, terminal_time=1.0)
+    engine = st.session_state.engine
+    risk = st.session_state.risk_manager
+    hist = st.session_state.history
 
-chart_placeholder = st.empty()
+    if st.session_state.auto_loop:
+        for _ in range(10):
+            if not st.session_state.auto_loop:
+                break
+                
+            b_bid = streamer.best_bid
+            b_ask = streamer.best_ask
+            
+            if b_bid is None or b_ask is None:
+                time.sleep(0.1)
+                continue
+                
+            mid = (b_bid + b_ask) / 2.0
+            
+            # Risk Check
+            unrealized = engine.get_unrealized_pnl(mid)
+            halt, reason = risk.check_limits(engine.inventory, unrealized, engine.realized_pnl)
+            
+            if halt:
+                st.session_state.auto_loop = False
+                st.error(f"Trading Halted: {reason}")
+                break
+                
+            # Strategy
+            quotes = model.get_quotes(mid, engine.inventory)
+            
+            # Engine Fill Simulation
+            curr_time = datetime.now()
+            engine.check_fills(b_bid, b_ask, quotes['bid'], quotes['ask'], curr_time)
+            
+            # Update state
+            hist['time'].append(curr_time)
+            hist['mid_price'].append(mid)
+            hist['res_price'].append(quotes['reservation_price'])
+            hist['ask_price'].append(quotes['ask'])
+            hist['bid_price'].append(quotes['bid'])
+            hist['inventory'].append(engine.inventory)
+            
+            hist['realized_pnl'].append(engine.realized_pnl)
+            hist['unrealized_pnl'].append(unrealized)
+            hist['total_pnl'].append(engine.realized_pnl + unrealized)
+                    
+            time.sleep(0.1)
 
-# Model Initialization
-model = AvellanedaStoikovModel(risk_aversion=risk_aversion, liquidity_density=liquidity, volatility=volatility, terminal_time=1.0)
-engine = st.session_state.engine
-risk = st.session_state.risk_manager
-hist = st.session_state.history
+    # Render Metrics
+    top_cols = st.columns(4)
+    if hist['time']:
+        mid = hist['mid_price'][-1]
+        b_bid = hist['bid_price'][-1] 
+        b_ask = hist['ask_price'][-1]
+        unrealized = engine.get_unrealized_pnl(mid)
+    else:
+        mid, b_bid, b_ask, unrealized = 0, 0, 0, 0
 
-def update_charts():
+    if hist['time']:
+        top_cols[0].metric("Mid Price", f"${mid:.2f}", f"Spread: ${(b_ask - b_bid):.2f}")
+    else:
+        top_cols[0].metric("Mid Price", "$0.00", "Spread: $0.00")
+        
+    top_cols[1].metric("Inventory (BTC)", f"{engine.inventory:.3f}")
+    top_cols[2].metric("Total PnL", f"${(engine.realized_pnl + unrealized):.2f}", f"Unrealized: ${unrealized:.2f}")
+    
+    status_text = "Live Quoting" if st.session_state.auto_loop else "Halted"
+    status_sub = "Active" if st.session_state.auto_loop else "Inactive"
+    top_cols[3].metric("System Status", status_text, status_sub)
+    
     if not hist['time']:
         return
         
-    df = pd.DataFrame(hist)
-    # Keep last 100 points
-    df = df.tail(100)
+    # Render Chart
+    df = pd.DataFrame(hist).tail(100)
     
     fig = make_subplots(rows=2, cols=2, 
                         subplot_titles=("Live Quotes vs Mid", "Inventory Risk", "PnL Tracking", "Spread Distribution"),
                         vertical_spacing=0.1,
                         horizontal_spacing=0.05)
                         
-    # 1. Quotes
     fig.add_trace(go.Scatter(x=df['time'], y=df['ask_price'], mode='lines', name='Our Ask', line=dict(color='red', dash='dash')), row=1, col=1)
     fig.add_trace(go.Scatter(x=df['time'], y=df['mid_price'], mode='lines', name='Market Mid', line=dict(color='yellow')), row=1, col=1)
     fig.add_trace(go.Scatter(x=df['time'], y=df['res_price'], mode='lines', name='Reservation', line=dict(color='white')), row=1, col=1)
     fig.add_trace(go.Scatter(x=df['time'], y=df['bid_price'], mode='lines', name='Our Bid', line=dict(color='green', dash='dash')), row=1, col=1)
     
-    # 2. Inventory 
     fig.add_trace(go.Bar(x=df['time'], y=df['inventory'], name='Inventory', marker_color='cyan'), row=1, col=2)
     
-    # 3. PnL 
     fig.add_trace(go.Scatter(x=df['time'], y=df['realized_pnl'], mode='lines', fill='tozeroy', name='Realized PnL', line=dict(color='blue')), row=2, col=1)
     fig.add_trace(go.Scatter(x=df['time'], y=df['total_pnl'], mode='lines', name='Total PnL', line=dict(color='purple')), row=2, col=1)
     
-    # 4. Spread distribution (Ask - Bid) vs Real Spread
     our_spread = df['ask_price'] - df['bid_price']
     fig.add_trace(go.Scatter(x=df['time'], y=our_spread, mode='lines', name='Optimal Spread', line=dict(color='orange')), row=2, col=2)
     
-    fig.update_layout(height=700, template="plotly_dark", margin=dict(l=20, r=20, t=40, b=20))
-    chart_placeholder.plotly_chart(fig, use_container_width=True, key="live_chart")
+    fig.update_layout(height=700, template="plotly_dark", margin=dict(l=20, r=20, t=40, b=20), uirevision="constant")
+    st.plotly_chart(fig, use_container_width=True, key="live_chart")
 
-
-# Main Loop
-if st.session_state.auto_loop:
-    # Run a block of iterations without rerunning full streamlit script to avoid flicker
-    for i in range(10):
-        if not st.session_state.auto_loop:
-            break
-            
-        b_bid = streamer.best_bid
-        b_ask = streamer.best_ask
-        
-        if b_bid is None or b_ask is None:
-            time.sleep(0.5)
-            continue
-            
-        mid = (b_bid + b_ask) / 2.0
-        
-        # Risk Check
-        unrealized = engine.get_unrealized_pnl(mid)
-        halt, reason = risk.check_limits(engine.inventory, unrealized, engine.realized_pnl)
-        
-        if halt:
-            st.session_state.auto_loop = False
-            st.error(f"Trading Halted: {reason}")
-            break
-            
-        # Strategy
-        quotes = model.get_quotes(mid, engine.inventory)
-        
-        # Engine Fill Simulation
-        curr_time = datetime.now()
-        engine.check_fills(b_bid, b_ask, quotes['bid'], quotes['ask'], curr_time)
-        
-        # Update state
-        hist['time'].append(curr_time)
-        hist['mid_price'].append(mid)
-        hist['res_price'].append(quotes['reservation_price'])
-        hist['ask_price'].append(quotes['ask'])
-        hist['bid_price'].append(quotes['bid'])
-        hist['inventory'].append(engine.inventory)
-        
-        hist['realized_pnl'].append(engine.realized_pnl)
-        hist['unrealized_pnl'].append(unrealized)
-        hist['total_pnl'].append(engine.realized_pnl + unrealized)
-                
-        # Metrics updates
-        metric_mid.metric("Mid Price", f"${mid:.2f}", f"Spread: ${(b_ask - b_bid):.2f}")
-        metric_inv.metric("Inventory (BTC)", f"{engine.inventory:.3f}")
-        metric_pnl.metric("Total PnL", f"${(engine.realized_pnl + unrealized):.2f}", f"Unrealized: ${unrealized:.2f}")
-        metric_status.metric("System Status", "Live Quoting", "Active")
-        
-        # Only update chart on last tick of the loop block
-        if i == 9:
-            update_charts()
-            
-        time.sleep(0.1) # Simulate high frequency polling
-    
-    # Rerun to restart the block avoiding Streamlit thread killing
-    time.sleep(0.01)
-    st.rerun()
-else:
-    if len(hist['time']) > 0:
-        update_charts()
-        b_bid = streamer.best_bid
-        b_ask = streamer.best_ask
-        if b_bid and b_ask:
-            mid = (b_bid + b_ask) / 2.0
-            unrealized = engine.get_unrealized_pnl(mid)
-            metric_mid.metric("Mid Price", f"${mid:.2f}", f"Spread: ${(b_ask - b_bid):.2f}")
-            metric_inv.metric("Inventory (BTC)", f"{engine.inventory:.3f}")
-            metric_pnl.metric("Total PnL", f"${(engine.realized_pnl + unrealized):.2f}", f"Unrealized: ${unrealized:.2f}")
-        metric_status.metric("System Status", "Halted", "Inactive")
+update_dashboard()
