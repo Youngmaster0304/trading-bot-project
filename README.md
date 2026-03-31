@@ -83,6 +83,57 @@ The simulator is built entirely in Python, reflecting a modular, micro-service-l
 
 ---
 
+## 📊 System Diagrams
+
+### Use Case Diagram (Requirements)
+```mermaid
+flowchart LR
+    User([Trader / Quant])
+    API([Binance WebSocket])
+
+    subgraph MM Simulator
+        UC1([Start / Stop Engine])
+        UC2([Adjust Risk & Volatility Params])
+        UC3([Monitor Live P&L & Inventory])
+        UC4([Receive Live Order Book Ticks])
+        UC5([Execute Simulated Fills])
+        UC6([Halt on Risk Limit Exceeded])
+    end
+
+    User --> UC1
+    User --> UC2
+    User --> UC3
+    
+    API --> UC4
+    UC4 -.-> UC5
+    UC5 -.-> UC3
+    UC6 -.-> UC1
+```
+
+### Activity Diagram (Workflow)
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> DataStream : User clicks 'Start MM'
+    
+    state DataStream {
+        [*] --> AwaitTick
+        AwaitTick --> CheckRisk : Tick Received
+        
+        CheckRisk --> Halt : Limits Breached
+        CheckRisk --> CalcQuotes : Safe
+        
+        CalcQuotes --> CheckFills : Bid & Ask Calculated
+        CheckFills --> UpdateEngine : Market crosses Quotes
+        CheckFills --> AwaitTick : No Fill
+        UpdateEngine --> AwaitTick
+    }
+    
+    Halt --> Idle : Auto-Stopped / User Resets
+```
+
+---
+
 ## 🧮 The Math (Avellaneda-Stoikov 2008)
 
 The core algorithm dynamically alters the mid-price to a "Reservation Price" $r(s, t)$ mapping to your inventory position $q$:
