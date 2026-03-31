@@ -14,7 +14,7 @@ class MatchingEngine:
         
         self.trades = [] # Keep a log of trades
         
-    def check_fills(self, binance_bid, binance_ask, mm_bid, mm_ask, current_time):
+    def check_fills(self, binance_bid, binance_ask, mm_bid, mm_ask, current_time, dynamic_size=None):
         """
         Matches our MM quotes against the live Top-of-Book.
         In reality, we would wait for market orders to cross our quotes.
@@ -23,6 +23,7 @@ class MatchingEngine:
         If market bids >= our ask, we sell (our ask was hit).
         """
         fill_occurred = False
+        qty = dynamic_size if dynamic_size is not None else self.order_size
         
         # 1. Check if our Ask gets hit (Market buying from us)
         # In a real environment, people buy at the Ask. If the market's current bid equals or is higher than our Ask, it means a buyer would cross the spread. 
@@ -34,11 +35,11 @@ class MatchingEngine:
         prob_bid_hit = self._arrival_probability(mm_bid, mid_price, side='bid')
         
         if random.random() < prob_ask_hit or binance_bid >= mm_ask:
-            self.execute_trade("SELL", mm_ask, self.order_size, current_time, mid_price)
+            self.execute_trade("SELL", mm_ask, qty, current_time, mid_price)
             fill_occurred = True
             
         if random.random() < prob_bid_hit or binance_ask <= mm_bid:
-            self.execute_trade("BUY", mm_bid, self.order_size, current_time, mid_price)
+            self.execute_trade("BUY", mm_bid, qty, current_time, mid_price)
             fill_occurred = True
             
         return fill_occurred
