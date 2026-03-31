@@ -37,20 +37,25 @@ It replicates the fundamental architecture of what quantitative developers handl
 
 ```mermaid
 flowchart TD
+    %% Styling
+    classDef external fill:#f3ba2f,stroke:#333,stroke-width:2px,color:#000
+    classDef layer fill:#2b2b2b,stroke:#00a8ff,stroke-width:2px,color:#fff
+    classDef presentation fill:#ff4b4b,stroke:#333,stroke-width:2px,color:#fff
+
     %% External Data Source
-    Binance{{"Binance WebSocket<br/>(Live Order Book)"}}
+    Binance{{"⚡ Binance WebSocket<br/>(Live Order Book)"}}:::external
 
     %% Simulator Components
     subgraph Simulator Data Flow
-        Streamer["Data Layer<br/>(stream.py)"]
-        Model["Strategy Layer<br/>(model.py)"]
-        Engine["Execution Engine<br/>(engine.py)"]
-        Risk["Risk Manager<br/>(risk.py)"]
+        Streamer["📡 Data Layer<br/>(stream.py)"]:::layer
+        Model["🧠 Strategy Layer<br/>(model.py)"]:::layer
+        Engine["⚙️ Execution Engine<br/>(engine.py)"]:::layer
+        Risk["⚠️ Risk Manager<br/>(risk.py)"]:::layer
     end
 
     %% Presentation
-    Dashboard["Streamlit Dashboard<br/>(dashboard.py)"]
-    Charts[("Plotly Real-time Charts")]
+    Dashboard["🖥️ Streamlit Dashboard<br/>(dashboard.py)"]:::presentation
+    Charts[("📊 Plotly Real-time Charts")]:::layer
 
     %% Edges
     Binance -- "Tick Data (bestBid/Ask)" --> Streamer
@@ -88,16 +93,20 @@ The simulator is built entirely in Python, reflecting a modular, micro-service-l
 ### Use Case Diagram (Requirements)
 ```mermaid
 flowchart LR
-    User([Trader / Quant])
-    API([Binance WebSocket])
+    %% Styling
+    classDef actor fill:#8e44ad,stroke:#fff,stroke-width:2px,color:#fff
+    classDef usecase fill:#e67e22,stroke:#d35400,stroke-width:2px,color:#fff
+    
+    User([👤 Trader / Quant]):::actor
+    API([🌐 Binance WebSocket]):::actor
 
     subgraph MM Simulator
-        UC1([Start / Stop Engine])
-        UC2([Adjust Risk & Volatility Params])
-        UC3([Monitor Live P&L & Inventory])
-        UC4([Receive Live Order Book Ticks])
-        UC5([Execute Simulated Fills])
-        UC6([Halt on Risk Limit Exceeded])
+        UC1([Start / Stop Engine]):::usecase
+        UC2([Adjust Risk & Volatility Params]):::usecase
+        UC3([Monitor Live P&L & Inventory]):::usecase
+        UC4([Receive Live Order Book Ticks]):::usecase
+        UC5([Execute Simulated Fills]):::usecase
+        UC6([Halt on Risk Limit Exceeded]):::usecase
     end
 
     User --> UC1
@@ -113,6 +122,12 @@ flowchart LR
 ### Activity Diagram (Workflow)
 ```mermaid
 stateDiagram-v2
+    %% Styling
+    classDef idleState fill:#27ae60,color:#fff,stroke:#fff,stroke-width:2px
+    classDef actionState fill:#2980b9,color:#fff,stroke:#fff,stroke-width:2px
+    classDef dangerState fill:#c0392b,color:#fff,stroke:#fff,stroke-width:2px
+    classDef streamState fill:#2c3e50,color:#fff,stroke:#3498db,stroke-width:2px
+    
     [*] --> Idle
     Idle --> DataStream : User clicks 'Start MM'
     
@@ -130,6 +145,15 @@ stateDiagram-v2
     }
     
     Halt --> Idle : Auto-Stopped / User Resets
+
+    class Idle idleState
+    class AwaitTick actionState
+    class CheckRisk actionState
+    class CalcQuotes actionState
+    class CheckFills actionState
+    class UpdateEngine actionState
+    class Halt dangerState
+    class DataStream streamState
 ```
 
 ---
