@@ -3,13 +3,15 @@ import random
 import math
 
 class MatchingEngine:
-    def __init__(self, initial_cash=100000.0, order_size=0.1):
+    def __init__(self, initial_cash=100000.0, order_size=0.1, fee_rate=0.0005):
         self.cash = initial_cash
         self.inventory = 0.0 # representing position in BTC
         self.order_size = order_size # Qty per trade
+        self.fee_rate = fee_rate
         
         # Profit and Loss metrics
         self.realized_pnl = 0.0
+        self.total_fees = 0.0
         self.avg_entry_price = 0.0
         
         self.trades = [] # Keep a log of trades
@@ -57,6 +59,10 @@ class MatchingEngine:
         
     def execute_trade(self, side, price, qty, timestamp, mid_price):
         trade_val = price * qty
+        fee_usd = trade_val * self.fee_rate
+        self.total_fees += fee_usd
+        self.realized_pnl -= fee_usd
+        
         if side == "BUY":
             # Update average entry price when buying
             if self.inventory >= 0:
@@ -71,14 +77,14 @@ class MatchingEngine:
                 self.inventory += qty
                 if self.inventory == 0:
                     self.avg_entry_price = 0.0
-            self.cash -= trade_val
+            self.cash -= (trade_val + fee_usd)
         elif side == "SELL":
             if self.inventory <= 0:
                 # Adding to short
                 cost = self.avg_entry_price * abs(self.inventory) + trade_val
                 self.inventory -= qty
                 self.avg_entry_price = cost / abs(self.inventory)
-                self.cash += trade_val
+                self.cash += (trade_val - fee_usd)
             else:
                 # Selling long
                 realized = (price - self.avg_entry_price) * qty
@@ -86,13 +92,14 @@ class MatchingEngine:
                 self.inventory -= qty
                 if self.inventory == 0:
                     self.avg_entry_price = 0.0
-            self.cash += trade_val
+            self.cash += (trade_val - fee_usd)
             
         self.trades.append({
             "timestamp": timestamp,
             "side": side,
             "price": price,
             "qty": qty,
+            "fee_usd": fee_usd,
             "inventory_after": self.inventory,
             "realized_pnl_after": self.realized_pnl
         })
