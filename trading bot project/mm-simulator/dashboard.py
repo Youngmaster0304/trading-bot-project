@@ -231,6 +231,23 @@ def update_dashboard():
     fig.add_trace(go.Scatter(x=df['time'], y=df['res_price'], mode='lines', name='Reservation', line=dict(color='white')), row=1, col=1)
     fig.add_trace(go.Scatter(x=df['time'], y=df['bid_price'], mode='lines', name='Our Bid', line=dict(color='green', dash='dash')), row=1, col=1)
     
+    # Overlay Trade Markers
+    if engine.trades and not df.empty:
+        start_time = df['time'].iloc[0]
+        recent_trades = [t for t in engine.trades if t['timestamp'] >= start_time]
+        
+        buys = [t for t in recent_trades if t['side'] == 'BUY']
+        sells = [t for t in recent_trades if t['side'] == 'SELL']
+        
+        if buys:
+            fig.add_trace(go.Scatter(x=[t['timestamp'] for t in buys], y=[t['price'] for t in buys],
+                                     mode='markers', name='Buy Fill', 
+                                     marker=dict(symbol='triangle-up', color='lime', size=14, line=dict(width=1, color='white'))), row=1, col=1)
+        if sells:
+            fig.add_trace(go.Scatter(x=[t['timestamp'] for t in sells], y=[t['price'] for t in sells],
+                                     mode='markers', name='Sell Fill', 
+                                     marker=dict(symbol='triangle-down', color='red', size=14, line=dict(width=1, color='white'))), row=1, col=1)
+    
     fig.add_trace(go.Bar(x=df['time'], y=df['inventory'], name='Inventory', marker_color='cyan'), row=1, col=2)
     
     fig.add_trace(go.Scatter(x=df['time'], y=df['realized_pnl'], mode='lines', fill='tozeroy', name='Realized PnL', line=dict(color='blue')), row=2, col=1)
@@ -240,6 +257,21 @@ def update_dashboard():
     
     fig.update_layout(height=700, template="plotly_dark", margin=dict(l=20, r=20, t=40, b=20), uirevision="constant")
     st.plotly_chart(fig, use_container_width=True, key="live_chart")
+
+    # Session Statistics
+    st.markdown("---")
+    st.subheader("Session Statistics")
+    
+    stat_cols = st.columns(4)
+    total_trades = len(engine.trades)
+    total_volume = sum(t['qty'] for t in engine.trades) if engine.trades else 0.0
+    total_fees = engine.total_fees
+    net_pnl = engine.realized_pnl + unrealized
+    
+    stat_cols[0].metric("Total Executions", total_trades)
+    stat_cols[1].metric("Volume Traded (BTC)", f"{total_volume:.3f}")
+    stat_cols[2].metric("Total Fees Paid", f"${total_fees:.2f}")
+    stat_cols[3].metric("Net Session PnL", f"${net_pnl:.2f}")
 
     # Trade Log Table
     st.markdown("---")
