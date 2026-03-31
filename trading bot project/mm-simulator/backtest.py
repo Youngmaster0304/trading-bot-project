@@ -121,7 +121,7 @@ def generate_report(hist, trades, df, optimal_gamma):
     fig.add_trace(go.Bar(x=hist['timestamp'], y=hist['inventory'], name='Inventory', marker_color='cyan'), row=2, col=1)
     fig.add_trace(go.Scatter(x=hist['timestamp'], y=hist['net_pnl'], mode='lines', fill='tozeroy', name='Net PnL', line=dict(color='lime')), row=3, col=1)
     
-    fig.update_layout(height=1200, template="plotly_dark", title_text="Phase 6: High Frequency Backtest Report")
+    fig.update_layout(height=1200, template="plotly_dark", title_text="High Frequency Backtest Report")
     fig.write_html("backtest_report.html")
     print("Successfully generated 'backtest_report.html'")
 
