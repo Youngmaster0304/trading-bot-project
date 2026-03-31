@@ -6,11 +6,13 @@ import websocket
 class BinanceStreamer:
     def __init__(self, symbol="btcusdt"):
         self.symbol = symbol.lower()
-        self.ws_url = f"wss://stream.binance.com:9443/ws/{self.symbol}@bookTicker"
+        self.ws_url = f"wss://stream.binance.com:9443/ws/{self.symbol}@depth20@100ms"
         
         # Shared state that the engine/dashboard will read
         self.best_bid = None
         self.best_ask = None
+        self.ofi = 0.0
+        self.microprice = None
         
         self.ws = None
         self.thread = None
@@ -18,10 +20,25 @@ class BinanceStreamer:
 
     def _on_message(self, ws, message):
         data = json.loads(message)
-        # bookTicker gives best bid/ask
-        if 'b' in data and 'a' in data:
-            self.best_bid = float(data['b'])
-            self.best_ask = float(data['a'])
+        # depth20 gives top 20 bids/asks arrays [[price, qty], ...]
+        if 'bids' in data and 'asks' in data:
+            if len(data['bids']) == 0 or len(data['asks']) == 0:
+                return
+                
+            self.best_bid = float(data['bids'][0][0])
+            self.best_ask = float(data['asks'][0][0])
+            
+            # Sum up top 20 levels of volume
+            bid_vol = sum(float(b[1]) for b in data['bids'])
+            ask_vol = sum(float(a[1]) for a in data['asks'])
+            
+            total_vol = bid_vol + ask_vol
+            if total_vol > 0:
+                self.ofi = (bid_vol - ask_vol) / total_vol
+                self.microprice = (ask_vol * self.best_bid + bid_vol * self.best_ask) / total_vol
+            else:
+                self.ofi = 0.0
+                self.microprice = (self.best_bid + self.best_ask) / 2.0
 
     def _on_error(self, ws, error):
         print(f"WebSocket error: {error}")
