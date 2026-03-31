@@ -35,6 +35,40 @@ It replicates the fundamental architecture of what quantitative developers handl
 
 ## 🏗️ Architecture
 
+```mermaid
+flowchart TD
+    %% External Data Source
+    Binance{{"Binance WebSocket<br/>(Live Order Book)"}}
+
+    %% Simulator Components
+    subgraph Simulator Data Flow
+        Streamer["Data Layer<br/>(stream.py)"]
+        Model["Strategy Layer<br/>(model.py)"]
+        Engine["Execution Engine<br/>(engine.py)"]
+        Risk["Risk Manager<br/>(risk.py)"]
+    end
+
+    %% Presentation
+    Dashboard["Streamlit Dashboard<br/>(dashboard.py)"]
+    Charts[("Plotly Real-time Charts")]
+
+    %% Edges
+    Binance -- "Tick Data (bestBid/Ask)" --> Streamer
+    Streamer -- "Live Top-of-Book" --> Dashboard
+    
+    Dashboard -- "Mid Price" --> Model
+    Engine -. "Current Position" .-> Model
+    Model -- "Optimal Quotes & Spread" --> Dashboard
+
+    Dashboard -- "Evaluate Quotes vs Market" --> Engine
+    Engine -- "Simulated Fills (Inventory + P&L)" --> Dashboard
+    
+    Engine -- "Risk Metrics" --> Risk
+    Risk -- "Kill Switch / Halts" --> Dashboard
+    
+    Dashboard -- "Metrics Render" --> Charts
+```
+
 The simulator is built entirely in Python, reflecting a modular, micro-service-like component design:
 
 ```text
