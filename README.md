@@ -43,19 +43,19 @@ flowchart TD
     classDef presentation fill:#ff4b4b,stroke:#333,stroke-width:2px,color:#fff
 
     %% External Data Source
-    Binance{{"⚡ Binance WebSocket<br/>(Live Order Book)"}}:::external
+    Binance{{"Binance WebSocket<br/>(Live Order Book)"}}:::external
 
     %% Simulator Components
     subgraph Simulator Data Flow
-        Streamer["📡 Data Layer<br/>(stream.py)"]:::layer
-        Model["🧠 Strategy Layer<br/>(model.py)"]:::layer
-        Engine["⚙️ Execution Engine<br/>(engine.py)"]:::layer
-        Risk["⚠️ Risk Manager<br/>(risk.py)"]:::layer
+        Streamer["Data Layer<br/>(stream.py)"]:::layer
+        Model["Strategy Layer<br/>(model.py)"]:::layer
+        Engine["Execution Engine<br/>(engine.py)"]:::layer
+        Risk["Risk Manager<br/>(risk.py)"]:::layer
     end
 
     %% Presentation
-    Dashboard["🖥️ Streamlit Dashboard<br/>(dashboard.py)"]:::presentation
-    Charts[("📊 Plotly Real-time Charts")]:::layer
+    Dashboard["Streamlit Dashboard<br/>(dashboard.py)"]:::presentation
+    Charts[("Plotly Real-time Charts")]:::layer
 
     %% Edges
     Binance -- "Tick Data (bestBid/Ask)" --> Streamer
@@ -97,8 +97,8 @@ flowchart LR
     classDef actor fill:#8e44ad,stroke:#fff,stroke-width:2px,color:#fff
     classDef usecase fill:#e67e22,stroke:#d35400,stroke-width:2px,color:#fff
     
-    User([👤 Trader / Quant]):::actor
-    API([🌐 Binance WebSocket]):::actor
+    User([Trader / Quant]):::actor
+    API([Binance WebSocket]):::actor
 
     subgraph MM Simulator
         UC1([Start / Stop Engine]):::usecase
