@@ -1,7 +1,7 @@
-<h1 align="center">Real-Time Market Making Simulator 📈</h1>
+<h1 align="center">Market Making Simulator 📈</h1>
 
 <p align="center">
-  <strong>A professional-grade quoting simulator using the Avellaneda-Stoikov model on live Binance order book data.</strong>
+  <strong>A professional-grade quoting simulator using the Avellaneda-Stoikov model on live Binance data and historical backtesting.</strong>
 </p>
 
 <p align="center">
@@ -15,7 +15,11 @@
 
 ## ⚡ Overview
 
-This repository features a live trading demonstration that perfectly illustrates the intersection of deterministic infrastructure and stochastic control theory. The simulator connects to real-time crypto markets (via free Binance WebSockets), computes high-frequency bid/ask quotes dynamically based on inventory exposure, and visualizes live P&L data using a sleek Streamlit dashboard. 
+This repository features a comprehensive market making simulation suite that illustrates the intersection of deterministic infrastructure and stochastic control theory. The simulator includes both live trading demonstrations and historical backtesting capabilities.
+
+The live simulator connects to real-time crypto markets (via free Binance WebSockets), computes high-frequency bid/ask quotes dynamically based on inventory exposure, and visualizes live P&L data using a sleek Streamlit dashboard.
+
+The backtesting module allows for offline analysis using synthetic or historical data, enabling strategy optimization and performance evaluation across different market conditions.
 
 It replicates the fundamental architecture of what quantitative developers handle at firms like Jane Street—from maintaining low-latency data feeds to implementing risk limits and automated kill switches against drawdowns.
 
@@ -30,6 +34,9 @@ It replicates the fundamental architecture of what quantitative developers handl
 - **Simulated Real-time Fills:** Top-of-book crossover deterministic matching system. Watch your inventory spike as market swings trigger fill conditions against your quotes!
 - **Strict Risk Management Layer:** Built-in "Kill Switch" circuitry that bounds maximum inventory ($BTC) and caps unrealized drawdowns.
 - **Live Analytical Dashboard:** Instant visualization of realized/unrealized P&L, quote distribution relative to mid-price, and inventory positioning using responsive Plotly charts.
+- **Historical Backtesting:** Run the strategy on synthetic or historical data to evaluate performance, optimize parameters, and analyze different market regimes.
+- **Synthetic Data Generation:** Generate realistic market data with configurable volatility regimes, order flow imbalance, and microprice dynamics.
+- **Backtest Reporting:** Automated HTML reports with detailed P&L analysis, trade logs, and performance metrics.
 
 ---
 
@@ -83,7 +90,12 @@ The simulator is built entirely in Python, reflecting a modular, micro-service-l
 ├── engine.py          # Virtual matching engine assessing real-market hits against our quotes
 ├── risk.py            # Independent observer enforcing threshold logic to halt trading
 ├── dashboard.py       # Streamlit GUI coordinating threads, state loops, and Plotly UI
-└── requirements.txt
+├── backtest.py        # Historical backtesting engine for strategy evaluation
+├── generate_history.py # Synthetic market data generator with regime shifts
+├── history.csv        # Generated historical/synthetic market data
+├── backtest_report.html # Automated backtest performance report
+├── requirements.txt   # Python dependencies
+└── README.md
 ```
 
 ---
@@ -99,24 +111,34 @@ flowchart LR
     
     User([Trader / Quant]):::actor
     API([Binance WebSocket]):::actor
+    Data([Historical Data]):::actor
 
     subgraph MM Simulator
-        UC1([Start / Stop Engine]):::usecase
+        UC1([Start / Stop Live Engine]):::usecase
         UC2([Adjust Risk & Volatility Params]):::usecase
         UC3([Monitor Live P&L & Inventory]):::usecase
         UC4([Receive Live Order Book Ticks]):::usecase
         UC5([Execute Simulated Fills]):::usecase
         UC6([Halt on Risk Limit Exceeded]):::usecase
+        UC7([Generate Synthetic Data]):::usecase
+        UC8([Run Historical Backtest]):::usecase
+        UC9([Analyze Backtest Results]):::usecase
     end
 
     User --> UC1
     User --> UC2
     User --> UC3
+    User --> UC7
+    User --> UC8
+    User --> UC9
     
     API --> UC4
     UC4 -.-> UC5
     UC5 -.-> UC3
     UC6 -.-> UC1
+    
+    Data --> UC8
+    UC8 -.-> UC9
 ```
 
 ### Activity Diagram (Workflow)
@@ -127,9 +149,11 @@ stateDiagram-v2
     classDef actionState fill:#2980b9,color:#fff,stroke:#fff,stroke-width:2px
     classDef dangerState fill:#c0392b,color:#fff,stroke:#fff,stroke-width:2px
     classDef streamState fill:#2c3e50,color:#fff,stroke:#3498db,stroke-width:2px
+    classDef backtestState fill:#9b59b6,color:#fff,stroke:#fff,stroke-width:2px
     
     [*] --> Idle
     Idle --> DataStream : User clicks 'Start MM'
+    Idle --> GenerateData : User runs backtest
     
     state DataStream {
         [*] --> AwaitTick
@@ -144,6 +168,25 @@ stateDiagram-v2
         UpdateEngine --> AwaitTick
     }
     
+    state Backtest {
+        [*] --> LoadData
+        LoadData --> ProcessTick : Data Loaded
+        
+        ProcessTick --> CheckRiskBT : Tick Processed
+        CheckRiskBT --> HaltBT : Limits Breached
+        CheckRiskBT --> CalcQuotesBT : Safe
+        
+        CalcQuotesBT --> CheckFillsBT : Quotes Calculated
+        CheckFillsBT --> UpdateEngineBT : Fill Occurred
+        CheckFillsBT --> ProcessTick : No Fill
+        UpdateEngineBT --> ProcessTick
+        
+        HaltBT --> GenerateReport
+        ProcessTick --> GenerateReport : End of Data
+        GenerateReport --> [*]
+    }
+    
+    GenerateData --> Backtest
     Halt --> Idle : Auto-Stopped / User Resets
 
     class Idle idleState
@@ -154,6 +197,15 @@ stateDiagram-v2
     class UpdateEngine actionState
     class Halt dangerState
     class DataStream streamState
+    class GenerateData backtestState
+    class LoadData backtestState
+    class ProcessTick backtestState
+    class CheckRiskBT backtestState
+    class CalcQuotesBT backtestState
+    class CheckFillsBT backtestState
+    class UpdateEngineBT backtestState
+    class HaltBT backtestState
+    class GenerateReport backtestState
 ```
 
 ---
@@ -214,6 +266,39 @@ Once the browser window opens:
 1. Hit **Start MM** in the left sidebar to connect to the Binance feed.
 2. The UI will establish a connection, and high-frequency quote generation will begin!
 3. Play with **Risk Aversion ($\gamma$)**, **Volatility**, and **Liquidity Density** on the fly to see how the engine instantly transforms your quoting behavior!
+
+---
+
+## 🔄 Backtesting
+
+### Generating Synthetic Data
+Create realistic historical data for backtesting:
+
+```bash
+python generate_history.py
+```
+
+This generates `history.csv` with configurable market conditions including volatility regimes and order flow imbalance.
+
+### Running a Backtest
+Execute the backtesting engine on the generated data:
+
+```bash
+python backtest.py
+```
+
+The script will:
+- Load historical data from `history.csv`
+- Run the Avellaneda-Stoikov strategy with dynamic parameters
+- Generate an HTML report (`backtest_report.html`) with detailed analysis
+- Display key performance metrics including Sharpe ratio, max drawdown, and trade statistics
+
+### Customizing Backtest Parameters
+Modify parameters in `backtest.py`:
+- `gamma`: Risk aversion factor
+- `k`: Liquidity density
+- `ofi_weight`: Order flow imbalance sensitivity
+- Adjust risk limits in the `RiskManager` initialization
 
 ---
 
