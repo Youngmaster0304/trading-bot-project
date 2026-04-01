@@ -27,16 +27,23 @@ It replicates the fundamental architecture of what quantitative developers handl
 
 ## 🚀 Features
 
-- **Live Order Book Sync:** Streams real `BTCUSDT` tick data over WebSockets (latency-optimized background threading).
+- **Live Order Book Sync:** Streams real `BTCUSDT` and `ETHUSDT` tick data over WebSockets (latency-optimized background threading).
 - **Dynamic Quoting (Avellaneda-Stoikov):** Calculates optimal bid and ask spreads using stochastic control parameters.
   - Generates a tailored **Reservation Price** factoring in your current inventory skew.
   - Dynamically widens or narrows **Optimal Spread** based on market volatility and set liquidity density.
+- **Advanced Market Regime Detection:** Real-time classification into CALM, TRENDING, and VOLATILE states with confidence scoring.
+- **Volatility Estimation:** Rolling window standard deviation with 100-tick history for adaptive risk management.
+- **Microprice Calculator:** Order book weighting for divergence signals and reservation price adjustments.
+- **Dynamic Position Sizing:** Kelly-inspired sizing with multi-factor adjustment (confidence, volatility, inventory utilization).
+- **Adverse Selection Analysis:** Toxicity detection measuring quote fill quality and execution costs.
 - **Simulated Real-time Fills:** Top-of-book crossover deterministic matching system. Watch your inventory spike as market swings trigger fill conditions against your quotes!
-- **Strict Risk Management Layer:** Built-in "Kill Switch" circuitry that bounds maximum inventory ($BTC) and caps unrealized drawdowns.
+- **Strict Risk Management Layer:** Built-in "Kill Switch" circuitry that bounds maximum inventory ($BTC/$ETH) and caps unrealized drawdowns.
 - **Live Analytical Dashboard:** Instant visualization of realized/unrealized P&L, quote distribution relative to mid-price, and inventory positioning using responsive Plotly charts.
 - **Historical Backtesting:** Run the strategy on synthetic or historical data to evaluate performance, optimize parameters, and analyze different market regimes.
 - **Synthetic Data Generation:** Generate realistic market data with configurable volatility regimes, order flow imbalance, and microprice dynamics.
 - **Backtest Reporting:** Automated HTML reports with detailed P&L analysis, trade logs, and performance metrics.
+- **Parameter Sensitivity Analysis:** Grid search optimization across gamma and liquidity parameters.
+- **Performance Analytics:** Sharpe/Sortino ratios, max drawdown, win rate, and rolling statistics.
 
 ---
 
@@ -86,17 +93,37 @@ The simulator is built entirely in Python, reflecting a modular, micro-service-l
 ```text
 📁 mm-simulator/
 ├── stream.py          # WebSocket Manager feeding order-book top states to shared memory
-├── model.py           # Core Math (Avellaneda-Stoikov parameterizations)
+├── model.py           # Core Math (Avellaneda-Stoikov parameterizations + AI prediction)
 ├── engine.py          # Virtual matching engine assessing real-market hits against our quotes
 ├── risk.py            # Independent observer enforcing threshold logic to halt trading
 ├── dashboard.py       # Streamlit GUI coordinating threads, state loops, and Plotly UI
 ├── backtest.py        # Historical backtesting engine for strategy evaluation
 ├── generate_history.py # Synthetic market data generator with regime shifts
+├── volatility.py      # Real-time volatility estimation and regime detection
+├── sizing.py          # Dynamic position sizing with Kelly-inspired logic
+├── analytics.py       # Adverse selection analysis and performance metrics
+├── dashboard_utils.py # Professional visualization components for Streamlit
 ├── history.csv        # Generated historical/synthetic market data
 ├── backtest_report.html # Automated backtest performance report
+├── COMPLETION_REPORT.md # Detailed implementation checklist and status
+├── ENHANCEMENTS.md   # Comprehensive enhancement documentation
 ├── requirements.txt   # Python dependencies
 └── README.md
 ```
+
+### Enhanced Modules Overview
+
+The simulator has been significantly enhanced with four new specialized modules:
+
+- **`volatility.py`**: Implements `VolatilityEstimator`, `RegimeDetector`, and `MicropriceCalculator` classes for real-time market analysis.
+- **`sizing.py`**: Contains `DynamicSizer` for Kelly-inspired position sizing with multi-factor risk adjustment.
+- **`analytics.py`**: Provides `AdverseSelectionAnalyzer`, `ParameterSensitivityAnalyzer`, and `PerformanceAnalytics` for comprehensive strategy evaluation.
+- **`dashboard_utils.py`**: Professional visualization utilities including `SessionAnalytics` and multiple chart creation functions.
+
+### Documentation
+
+- **`COMPLETION_REPORT.md`**: Detailed checklist of all implemented features and validation results.
+- **`ENHANCEMENTS.md`**: Comprehensive documentation of all enhancements, code changes, and testing outcomes.
 
 ---
 
@@ -292,6 +319,7 @@ The script will:
 - Run the Avellaneda-Stoikov strategy with dynamic parameters
 - Generate an HTML report (`backtest_report.html`) with detailed analysis
 - Display key performance metrics including Sharpe ratio, max drawdown, and trade statistics
+- Perform adverse selection analysis and parameter sensitivity sweeps
 
 ### Customizing Backtest Parameters
 Modify parameters in `backtest.py`:
@@ -310,6 +338,7 @@ This section documents the latest code stabilizations and bug fixes applied in t
 - Risk logic event thresholds tightened for safe comparison (inventory `> max_inventory`, drawdown `total_pnl < max_drawdown`).
 - AI confidence model enhanced in `model.py` for warm-up and model-quality scoring.
 - AI return display scale adjusted in dashboard to avoid `0.000bps` for small epsilon signals.
+- README.md updated with all enhanced features, new modules, and complete file structure.
 
 ---
 
