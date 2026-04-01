@@ -302,6 +302,17 @@ Modify parameters in `backtest.py`:
 
 ---
 
+## 🛠️ Recent Final Patch Notes (2026-04-01)
+This section documents the latest code stabilizations and bug fixes applied in this session:
+
+- UI emoji cleanup: removed decorative section icons, retained status indicators (`🟢`, `🟡`, `🔴`).
+- `dashboard_utils.create_statistics_panel()` variable fix: corrected `total_pnl` usage.
+- Risk logic event thresholds tightened for safe comparison (inventory `> max_inventory`, drawdown `total_pnl < max_drawdown`).
+- AI confidence model enhanced in `model.py` for warm-up and model-quality scoring.
+- AI return display scale adjusted in dashboard to avoid `0.000bps` for small epsilon signals.
+
+---
+
 ## ⚠️ Disclaimer
 
 This is a **simulated** trading environment designed for robust quantitative testing, portfolio planning, and demonstrating low-latency Python system design. It is completely sandbox-based and does **not** actually place orders or risk real capital on Binance. Use responsibly.
